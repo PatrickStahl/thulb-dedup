@@ -33,34 +33,45 @@ class K10PlusClient:
 
     def search(
         self,
-        title: str,
-        author: str,
+        title: str | None = None,
+        author: str | None = None,
         limit: int = 10,
     ) -> list[CatalogRecord]:
         """
-        Search the ThULB/K10plus catalog by title and author.
+        Search the ThULB/K10plus catalog.
 
-        Both fields are mandatory. No fallback query is performed.
+        At least one of title or author must be provided.
+
+        The normal batch workflow should provide both fields.
+        Supplying only one field is mainly useful for manual testing.
         """
 
-        title = _normalize_query_value(title)
-        author = _normalize_author_for_query(author)
+        title = (
+            _normalize_query_value(title)
+            if title
+            else None
+        )
 
-        if not title:
-            raise ValueError("title must not be empty")
+        author = (
+            _normalize_author_for_query(author)
+            if author
+            else None
+        )
 
-        if not author:
-            raise ValueError("author must not be empty")
+        if not title and not author:
+            raise ValueError(
+                "At least one of title or author must be provided"
+            )
 
         if not 1 <= limit <= 100:
-            raise ValueError("limit must be between 1 and 100")
+            raise ValueError(
+                "limit must be between 1 and 100"
+            )
 
         query = self._build_query(
             title=title,
             author=author,
         )
-
-        print(f"SRU query: {query}")
 
         params = {
             "version": "1.1",
@@ -87,17 +98,31 @@ class K10PlusClient:
 
     @staticmethod
     def _build_query(
-        title: str,
-        author: str,
+        title: str | None,
+        author: str | None,
     ) -> str:
-        title_term = _escape_cql_term(title)
-        author_term = _escape_cql_term(author)
+        query_parts: list[str] = []
 
-        return (
-            f"pica.tit={title_term} "
-            f"AND "
-            f"pica.per={author_term}"
-        )
+        if title:
+            title_term = _escape_cql_term(title)
+
+            query_parts.append(
+                f"pica.tit={title_term}"
+            )
+
+        if author:
+            author_term = _escape_cql_term(author)
+
+            query_parts.append(
+                f"pica.per={author_term}"
+            )
+
+        if not query_parts:
+            raise ValueError(
+                "At least one search field is required"
+            )
+
+        return " AND ".join(query_parts)
 
 def _number_of_records(root: ET.Element) -> int:
     for element in root.iter():
