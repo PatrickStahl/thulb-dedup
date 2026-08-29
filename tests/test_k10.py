@@ -1,21 +1,33 @@
 from bookmatcher.k10plus import K10PlusClient
+from bookmatcher.models import Book
+from bookmatcher.ranking import rank_candidates
 
+
+book = Book(
+    source_row=2,
+    author="Admoni, Vladimir",
+    title="Der deutsche Sprachbau",
+    year_raw=1966,
+)
 
 client = K10PlusClient()
 
 records = client.search(
-    title="Der deutsche Sprachbau",
-    author="Admoni, Vladimir",
+    title=book.title,
+    author=book.author,
     limit=10,
 )
 
-for record in records:
-    print(
-        record.ppn,
-        record.year,
-        record.title,
-        record.authors,
-    )
+ranked = rank_candidates(
+    book,
+    records,
+    top_k=3,
+)
 
-if not records:
-    print("No records found.")
+for candidate in ranked:
+    print(
+        candidate.year_distance,
+        candidate.record.ppn,
+        candidate.record.year,
+        candidate.record.title,
+    )
