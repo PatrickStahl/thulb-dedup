@@ -43,6 +43,9 @@ Die folgenden Schritte gehen davon aus, dass die Buchliste im Projektordner unte
 powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
 ```
 
+4. Danach dieses PowerShell-Fenster schließen.
+5. Den Projektordner wieder im Windows-Explorer öffnen, in die Adresszeile `powershell` eingeben und Enter drücken.
+
 Danach besteht der normale Arbeitsablauf aus zwei Befehlen.
 
 Erstens: Eingabedatei einlesen und die noch nicht geprüften Datensätze nach `output\unannotiert.csv` schreiben.
@@ -93,7 +96,7 @@ Das Ergebnis steht anschließend in `output/unannotiert_matches.csv`.
 
 Ein weitgehend automatisches Setup ist möglich und über die Skripte in `scripts/` vorbereitet. Sie verwenden den offiziellen [`uv`-Installer](https://docs.astral.sh/uv/getting-started/installation/), installieren `uv`, falls es noch fehlt, und führen danach `uv sync` aus; `uv` richtet die passende Python-Umgebung und alle Projektabhängigkeiten ein.
 
-Grenzen des automatischen Setups: Der Rechner braucht Internetzugang, PowerShell muss lokale Skripte starten dürfen, und das spätere Matching benötigt Zugriff auf die K10plus-Schnittstelle. Falls Windows nach dem Setup `uv` noch nicht erkennt, PowerShell schließen, neu öffnen und das Setup erneut starten.
+Grenzen des automatischen Setups: Der Rechner braucht Internetzugang, PowerShell muss lokale Skripte starten dürfen, und das spätere Matching benötigt Zugriff auf die K10plus-Schnittstelle. Unter Windows muss PowerShell nach dem Setup einmal neu geöffnet werden, damit der frisch ergänzte `uv`-Pfad sicher verfügbar ist.
 
 ## `bookmatcher`
 
