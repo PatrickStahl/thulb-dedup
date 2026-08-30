@@ -4,6 +4,16 @@
 
 Dieses Projekt gleicht einen lokalen Buchbestand mit dem K10plus-Katalogbestand der Thüringer Universitäts- und Landesbibliothek (ThULB) ab. Das Verfahren ist bewusst heuristisch und dient als **Kandidatengenerator für eine anschließende manuelle Prüfung**: Gefundene Treffer sind sehr zuverlässig, nicht gefundene Titel können aber trotzdem im Bestand vorhanden sein.
 
+## Inhalt
+
+- [Erwartete Datenstruktur](#erwartete-datenstruktur)
+- [Schnellstart unter Windows](#schnellstart-unter-windows)
+- [Schnellstart unter Linux](#schnellstart-unter-linux)
+- [Automatisches Setup](#automatisches-setup)
+- [`bookmatcher`](#bookmatcher)
+- [Evaluation](#evaluation)
+- [Hinweise für die manuelle Prüfung](#hinweise-für-die-manuelle-prüfung)
+
 ## Erwartete Datenstruktur
 
 Die Eingabedatei kann als `.csv`, `.xlsx` oder `.xlsm` vorliegen. Die erste Zeile muss die Spaltennamen enthalten; vollständig leere Zeilen werden ignoriert.
@@ -17,57 +27,73 @@ Titel (Auflage)
 Anzahl des Exemplares in Thulb
 ```
 
+Die Spalte `Anzahl des Exemplares in Thulb` muss auch dann vorhanden sein, wenn noch keine manuelle ThULB-Prüfung existiert. In diesem Fall bleibt sie einfach leer; die Datensätze landen dann beim Aufteilen in `output/unannotiert.csv`.
+
 Falls keine Spalte `Quellzeile` vorhanden ist, wird sie beim Einlesen automatisch ergänzt. Sie verweist auf die ursprüngliche Zeilennummer der Eingabedatei und wird später verwendet, um Kandidaten wieder eindeutig dem Ausgangsdatensatz zuzuordnen.
 
-## Usage
+## Schnellstart unter Windows
 
-Empfohlen ist die Ausführung mit `uv`.
+Die folgenden Schritte gehen davon aus, dass die Buchliste im Projektordner unter `data\Buchliste.xlsx` liegt. Wenn die Datei anders heißt, muss nur dieser Dateiname im ersten Arbeitsbefehl angepasst werden.
 
-```bash
-uv sync
+1. Den Projektordner im Windows-Explorer öffnen.
+2. In die Adresszeile des Explorers `powershell` eingeben und Enter drücken.
+3. Einmalig das Setup starten:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
 ```
 
-Eingabedatei nach vorhandener ThULB-Annotation aufteilen:
+Danach besteht der normale Arbeitsablauf aus zwei Befehlen.
 
-```bash
-uv run bookmatcher data/buecher.xlsx
+Erstens: Eingabedatei einlesen und die noch nicht geprüften Datensätze nach `output\unannotiert.csv` schreiben.
+
+```powershell
+uv run bookmatcher "data\Buchliste.xlsx"
 ```
 
-Ohne interaktive Zeilenauswahl:
+Das Programm fragt dabei, ob eine manuelle Zeilenauswahl verwendet werden soll. Für den normalen Fall einfach `n` eingeben und Enter drücken; dann werden alle Datensätze übernommen.
 
-```bash
-uv run bookmatcher data/buecher.xlsx --no-prompt
+Zweitens: K10plus-Matching für die unannotierten Datensätze ausführen.
+
+```powershell
+uv run python -m bookmatcher.batch output\unannotiert.csv output\unannotiert_matches.csv
 ```
 
-Ausgabeordner festlegen:
+Das Ergebnis steht anschließend in `output\unannotiert_matches.csv`.
+
+## Schnellstart unter Linux
+
+Die folgenden Schritte gehen davon aus, dass die Buchliste im Projektordner unter `data/Buchliste.xlsx` liegt. Wenn die Datei anders heißt, muss nur dieser Dateiname im ersten Arbeitsbefehl angepasst werden.
+
+Einmalig das Setup starten:
 
 ```bash
-uv run bookmatcher data/buecher.xlsx --output-dir output
+bash scripts/setup-linux.sh
 ```
 
-K10plus-Matching auf einer exportierten CSV ausführen:
+Danach besteht der normale Arbeitsablauf aus zwei Befehlen.
+
+Erstens: Eingabedatei einlesen und die noch nicht geprüften Datensätze nach `output/unannotiert.csv` schreiben.
 
 ```bash
-uv run python -m bookmatcher.batch output/annotiert.csv output/annotiert_matches.csv
+uv run bookmatcher "data/Buchliste.xlsx"
 ```
 
-Wichtige Matching-Optionen:
+Das Programm fragt dabei, ob eine manuelle Zeilenauswahl verwendet werden soll. Für den normalen Fall einfach `n` eingeben und Enter drücken; dann werden alle Datensätze übernommen.
+
+Zweitens: K10plus-Matching für die unannotierten Datensätze ausführen.
 
 ```bash
-uv run python -m bookmatcher.batch output/annotiert.csv output/annotiert_matches.csv --top-k 3 --search-limit 10 --delay 0.1
+uv run python -m bookmatcher.batch output/unannotiert.csv output/unannotiert_matches.csv
 ```
 
-Evaluation gegen vorhandene Annotationen:
+Das Ergebnis steht anschließend in `output/unannotiert_matches.csv`.
 
-```bash
-uv run python -m bookmatcher.evaluation output/annotiert_matches.csv
-```
+## Automatisches Setup
 
-Tests ausführen:
+Ein weitgehend automatisches Setup ist möglich und über die Skripte in `scripts/` vorbereitet. Sie verwenden den offiziellen [`uv`-Installer](https://docs.astral.sh/uv/getting-started/installation/), installieren `uv`, falls es noch fehlt, und führen danach `uv sync` aus; `uv` richtet die passende Python-Umgebung und alle Projektabhängigkeiten ein.
 
-```bash
-uv run pytest
-```
+Grenzen des automatischen Setups: Der Rechner braucht Internetzugang, PowerShell muss lokale Skripte starten dürfen, und das spätere Matching benötigt Zugriff auf die K10plus-Schnittstelle. Falls Windows nach dem Setup `uv` noch nicht erkennt, PowerShell schließen, neu öffnen und das Setup erneut starten.
 
 ## `bookmatcher`
 
@@ -145,6 +171,8 @@ error          technische Anfrage fehlgeschlagen
 
 ## Evaluation
 
+Die Evaluation ist vor allem für Entwicklung und Qualitätskontrolle gedacht. Im praktischen Arbeitsablauf ohne vorhandene Ground Truth muss sie nicht ausgeführt werden.
+
 Für die Entwicklung standen manuell annotierte Datensätze zur Verfügung. Die bestehenden Annotationen wurden so interpretiert:
 
 ```text
@@ -170,7 +198,16 @@ Recall:    0.8208
 Accuracy:  0.8692
 ```
 
-Die hohe Precision bedeutet, dass gefundene Treffer sehr häufig mit der bisherigen manuellen Annotation übereinstimmen. Bei den wenigen False Positives ist anzunehmen, dass ein Teil auf nicht gefundene Treffer in der ursprünglichen Annotation zurückgeht; diese Fälle können bei Bedarf nachevaluiert werden. Der geringere Recall zeigt, dass die konservative Suchstrategie vorhandene Bücher teilweise nicht findet.
+Die hohe Precision bedeutet, dass gefundene Treffer sehr häufig mit der bisherigen manuellen Annotation übereinstimmen. Bei den wenigen False Positives ist anzunehmen, dass ein Teil auf nicht gefundene Treffer in der ursprünglichen Annotation zurückgeht; diese Fälle können bei Bedarf nachevaluiert werden und werden in der folgenden Tabelle aufgelistet. Der geringere Recall zeigt, dass die konservative Suchstrategie vorhandene Bücher teilweise nicht findet.
+
+| Quellzeile | Lokaler Datensatz                                           | Gefundener Kandidat                                                            | Jahr-Distanz |
+| ---------: | ----------------------------------------------------------- | ------------------------------------------------------------------------------ | -----------: |
+|    **102** | Fischer, Rudolf — *August Schleicher zur Erinnerung* — 1962 | gleichnamiger Treffer, sogar **2 Katalogrecords von 1962**                     |        **0** |
+|    **185** | Hossfeld, Fr. — *Geschichte des Dorfes Achelstädt* — 1905   | *Geschichte des Dorfes Achelstädt ; mit einem Kärtchen von Aug. Thomas* — 1905 |        **0** |
+|    **207** | Karch, Dieter — *Zur Morphologie des Pfälzischen* — 1990    | *Zur Morphologie im Pfälzischen* — 1990                                        |        **0** |
+|    **304** | Mills, Theodore M. — *the sociology of small groups* — 1967 | *Soziologie der Gruppe* — 1969                                                 |        **2** |
+|    **349** | Riesel, Elise — *Stilistik der deutschen Sprache* — 1963    | *Stilistik der deutschen Sprache* — 1959                                       |        **4** |
+
 
 ## Hinweise für die manuelle Prüfung
 
