@@ -5,6 +5,8 @@ import xml.etree.ElementTree as ET
 
 import requests
 
+from bookmatcher.normalization import normalize_author_for_query, normalize_title_for_query
+
 from .models import CatalogRecord
 
 
@@ -47,13 +49,13 @@ class K10PlusClient:
         """
 
         title = (
-            _normalize_query_value(title)
+            normalize_title_for_query(title)
             if title
             else None
         )
 
         author = (
-            _normalize_author_for_query(author)
+            normalize_author_for_query(author)
             if author
             else None
         )
@@ -132,32 +134,6 @@ def _number_of_records(root: ET.Element) -> int:
 
     return 0
 
-
-def _normalize_query_value(value: str) -> str:
-    """
-    Perform only minimal normalization before sending a value to K10plus.
-
-    We intentionally do not perform fuzzy matching or aggressive
-    normalization here.
-    """
-
-    return " ".join(value.split())
-
-def _normalize_author_for_query(author: str) -> str:
-    """
-    Reduce an author string to the surname used for catalog retrieval.
-
-    Examples:
-        "Admoni, Vladimir" -> "Admoni"
-        "Reichardt, Edinhard" -> "Reichardt"
-    """
-    author = " ".join(author.split())
-
-    if "," in author:
-        surname, _ = author.split(",", maxsplit=1)
-        return surname.strip()
-
-    return author.strip()
 
 def _escape_cql_term(value: str) -> str:
     """
