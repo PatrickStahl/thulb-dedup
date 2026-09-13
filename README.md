@@ -274,7 +274,22 @@ jede andere nichtleere Annotation → vorhanden
 leere Annotation                   → unbekannt / nicht für Evaluation verwendet
 ```
 
-Nach Einführung der Titelnormalisierung ergaben sich:
+Zum erneuten Berechnen der Metriken muss das Matching auf den bereits
+annotierten Datensätzen ausgeführt werden, weil nur dort eine Ground Truth in
+`Anzahl des Exemplares in Thulb` vorhanden ist.
+
+```bash
+uv run bookmatcher-cleanup data/Buchliste.xlsx output/Buchliste_bereinigt.xlsx
+uv run bookmatcher output/Buchliste_bereinigt.xlsx --no-prompt
+uv run python -m bookmatcher.batch output/annotiert.csv output/annotiert_matches.csv
+uv run python -m bookmatcher.evaluation output/annotiert_matches.csv
+```
+
+Die Evaluation gruppiert mehrere Kandidaten pro `Quellzeile`: Sobald mindestens
+ein Kandidat mit `match_status = ok` existiert, gilt der Datensatz als
+automatisch gefunden. Datensätze mit leerer Annotation werden ignoriert.
+
+Nach Einführung der Titelnormalisierung ergaben sich früher:
 
 ```text
 TP: 197
