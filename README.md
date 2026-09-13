@@ -1,7 +1,5 @@
 # ThULB Book Matcher
 
-## Ziel
-
 Dieses Projekt gleicht einen lokalen Buchbestand mit dem K10plus-Katalogbestand der Thüringer Universitäts- und Landesbibliothek (ThULB) ab. Das Verfahren ist bewusst heuristisch und dient als **Kandidatengenerator für eine anschließende manuelle Prüfung**: Gefundene Treffer sind sehr zuverlässig, nicht gefundene Titel können aber trotzdem im Bestand vorhanden sein.
 
 ## Inhalt
