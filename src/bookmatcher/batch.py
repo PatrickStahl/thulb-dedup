@@ -8,6 +8,7 @@ from typing import Iterable
 
 from .k10plus import K10PlusClient, K10PlusError
 from .models import Book, CatalogRecord
+from .normalization import SEARCH_TITLE_COLUMN, VOLUME_COLUMN
 from .ranking import rank_candidates
 
 
@@ -84,9 +85,9 @@ def run_batch(
         *RESULT_COLUMNS,
     ]
 
-    # In-memory cache for duplicate title/author combinations.
+    # In-memory cache for duplicate title/author/volume combinations.
     cache: dict[
-        tuple[str, str, int],
+        tuple[str, str, str, int],
         list[CatalogRecord],
     ] = {}
 
@@ -116,21 +117,27 @@ def run_batch(
             title = _clean_value(
                 row.get(TITLE_COLUMN)
             )
+            search_title = _clean_value(
+                row.get(SEARCH_TITLE_COLUMN)
+            ) or title
             author = _clean_value(
                 row.get(AUTHOR_COLUMN)
             )
             year = _clean_value(
                 row.get(YEAR_COLUMN)
             )
+            volume = _clean_value(
+                row.get(VOLUME_COLUMN)
+            )
 
             print(
                 f"[{index}/{total}] "
                 f"Quellzeile {source_row}: "
                 f"{author or '<kein Autor>'} - "
-                f"{title or '<kein Titel>'}"
+                f"{search_title or '<kein Titel>'}"
             )
 
-            if not title or not author:
+            if not search_title or not author:
                 _write_result(
                     writer,
                     row,
@@ -147,13 +154,14 @@ def run_batch(
                     source_row
                 ),
                 author=author,
-                title=title,
+                title=search_title,
                 year_raw=year,
             )
 
             cache_key = (
-                title,
+                search_title,
                 author,
+                volume or "",
                 search_limit,
             )
 
@@ -164,8 +172,9 @@ def run_batch(
                 else:
                     records = _search_with_retries(
                         client=client,
-                        title=title,
+                        title=search_title,
                         author=author,
+                        volume=volume,
                         limit=search_limit,
                         max_retries=max_retries,
                     )
@@ -239,6 +248,7 @@ def _search_with_retries(
     client: K10PlusClient,
     title: str,
     author: str,
+    volume: str | None,
     limit: int,
     max_retries: int,
 ) -> list[CatalogRecord]:
@@ -253,6 +263,7 @@ def _search_with_retries(
             return client.search(
                 title=title,
                 author=author,
+                volume=volume,
                 limit=limit,
             )
 

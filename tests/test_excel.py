@@ -10,12 +10,14 @@ from bookmatcher.excel import (
     SOURCE_ROW_COLUMN,
     SplitBooks,
     append_match_results_to_original,
+    cleanup_booklist,
     export_split,
     load_excel,
     reconstruct_original_output,
     select_source_rows,
     split_by_annotation,
 )
+from bookmatcher.normalization import SEARCH_TITLE_COLUMN, VOLUME_COLUMN
 
 
 def test_split_by_annotation_treats_every_non_empty_value_as_annotated():
@@ -173,3 +175,24 @@ def test_reconstruct_original_output_writes_csv_and_xlsx(tmp_path):
     assert worksheet["A1"].font.color.rgb == "00FFFFFF"
     assert worksheet["A2"].fill.fgColor.rgb == "00D9D9D9"
     assert worksheet["B2"].fill.fill_type is None
+
+
+def test_cleanup_booklist_appends_search_title_and_volume(tmp_path):
+    input_path = tmp_path / "books.csv"
+    input_path.write_text(
+        "\n".join(
+            [
+                f"{AUTHOR_COLUMN},{YEAR_COLUMN},{TITLE_COLUMN},{ANNOTATION_COLUMN}",
+                '"Spangenberg, Karl",1982,"Thüringisches Wörterbuch V.Band 12., 13. und 14. Lieferung",',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "cleaned.csv"
+
+    cleanup_booklist(input_path, output_path)
+
+    result = pd.read_csv(output_path)
+
+    assert result[SEARCH_TITLE_COLUMN].tolist() == ["Thüringisches Wörterbuch"]
+    assert result[VOLUME_COLUMN].tolist() == [5]

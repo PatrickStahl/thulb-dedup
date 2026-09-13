@@ -5,7 +5,11 @@ import xml.etree.ElementTree as ET
 
 import requests
 
-from bookmatcher.normalization import normalize_author_for_query, normalize_title_for_query
+from bookmatcher.normalization import (
+    extract_volume,
+    normalize_author_for_query,
+    normalize_title_for_query,
+)
 
 from .models import CatalogRecord
 
@@ -37,6 +41,7 @@ class K10PlusClient:
         self,
         title: str | None = None,
         author: str | None = None,
+        volume: str | None = None,
         limit: int = 10,
     ) -> list[CatalogRecord]:
         """
@@ -60,6 +65,8 @@ class K10PlusClient:
             else None
         )
 
+        volume = extract_volume(volume) if volume else None
+
         if not title and not author:
             raise ValueError(
                 "At least one of title or author must be provided"
@@ -73,6 +80,7 @@ class K10PlusClient:
         query = self._build_query(
             title=title,
             author=author,
+            volume=volume,
         )
 
         params = {
@@ -96,12 +104,21 @@ class K10PlusClient:
                 f"K10plus request failed: {exc}"
             ) from exc
 
-        return _parse_response(response.content)
+        records = _parse_response(response.content)
+        if volume is not None:
+            records = [
+                record
+                for record in records
+                if record.volume == volume
+            ]
+
+        return records
 
     @staticmethod
     def _build_query(
         title: str | None,
         author: str | None,
+        volume: str | None = None,
     ) -> str:
         query_parts: list[str] = []
 
@@ -117,6 +134,13 @@ class K10PlusClient:
 
             query_parts.append(
                 f"pica.per={author_term}"
+            )
+
+        if volume:
+            volume_term = _escape_cql_term(volume)
+
+            query_parts.append(
+                f"pica.tmb={volume_term}"
             )
 
         if not query_parts:
@@ -228,11 +252,7 @@ def _parse_pica_record(
         code="0",
     )
 
-    title = _first_subfield(
-        record,
-        field_tag="021A",
-        code="a",
-    )
+    title = _extract_title(record)
 
     year_raw = _first_subfield(
         record,
@@ -241,17 +261,66 @@ def _parse_pica_record(
     )
 
     authors = _extract_authors(record)
+    volume = _extract_volume(record)
 
     return CatalogRecord(
         ppn=ppn,
-        title=_clean_pica_text(title),
+        title=title,
         authors=authors,
         year=_parse_year(year_raw),
         raw_xml=ET.tostring(
             record,
             encoding="unicode",
         ),
+        volume=volume,
     )
+
+
+def _extract_title(record: ET.Element) -> str | None:
+    main_title = _first_subfield(
+        record,
+        field_tag="021A",
+        code="a",
+    )
+
+    if main_title is not None:
+        return _clean_pica_text(main_title)
+
+    multipart_title = _first_subfield(
+        record,
+        field_tag="036C",
+        code="a",
+    )
+    subtitle = _first_subfield(
+        record,
+        field_tag="036C",
+        code="d",
+    )
+
+    title_parts = [
+        _clean_pica_text(part)
+        for part in (multipart_title, subtitle)
+        if part
+    ]
+
+    if not title_parts:
+        return None
+
+    return " : ".join(title_parts)
+
+
+def _extract_volume(record: ET.Element) -> str | None:
+    for field_tag in ("036C", "036D"):
+        raw_volume = _first_subfield(
+            record,
+            field_tag=field_tag,
+            code="l",
+        )
+        volume = extract_volume(raw_volume)
+        if volume is not None:
+            return volume
+
+    return None
 
 
 def _extract_authors(

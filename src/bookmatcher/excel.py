@@ -9,6 +9,7 @@ from openpyxl.styles import Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from .models import Book
+from .normalization import SEARCH_TITLE_COLUMN, VOLUME_COLUMN, clean_title_for_search
 
 AUTHOR_COLUMN = "Autor/Herausgeber"
 YEAR_COLUMN = "Erscheinungsjahr"
@@ -110,6 +111,41 @@ def reconstruct_original_output(
 
     output_path = Path(output_path)
     _write_table(output, output_path)
+
+    return output_path
+
+
+def cleanup_booklist(
+    input_path: str | Path,
+    output_path: str | Path,
+    *,
+    sheet_name: str | int = 0,
+) -> Path:
+    """Write a source table with inspectable search helper columns appended."""
+    frame = load_excel(input_path, sheet_name=sheet_name)
+
+    for column in (SEARCH_TITLE_COLUMN, VOLUME_COLUMN):
+        if column in frame.columns:
+            frame = frame.drop(columns=[column])
+
+    search_titles: list[str] = []
+    volumes: list[str] = []
+
+    for title in frame[TITLE_COLUMN]:
+        if pd.isna(title):
+            search_titles.append("")
+            volumes.append("")
+            continue
+
+        cleaned = clean_title_for_search(str(title))
+        search_titles.append(cleaned.search_title)
+        volumes.append(cleaned.volume or "")
+
+    frame[SEARCH_TITLE_COLUMN] = search_titles
+    frame[VOLUME_COLUMN] = volumes
+
+    output_path = Path(output_path)
+    _write_table(frame, output_path)
 
     return output_path
 

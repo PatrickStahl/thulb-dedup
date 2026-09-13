@@ -35,7 +35,7 @@ Falls keine Spalte `Quellzeile` vorhanden ist, wird sie beim Einlesen automatisc
 
 Die folgenden Schritte gehen davon aus, dass die Buchliste im Projektordner unter `data\Buchliste.xlsx` liegt. Wenn die Datei anders heißt, muss nur dieser Dateiname im ersten Arbeitsbefehl angepasst werden.
 
-1. Den Projektordner im Windows-Explorer öffnen.
+1. Den Projektordner im Windows-Explorer öffnen (Rechtsklick auf Ordner --> "In Terminal öffnen").
 2. In die Adresszeile des Explorers `powershell` eingeben und Enter drücken.
 3. Einmalig das Setup starten:
 
@@ -46,17 +46,23 @@ powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
 4. Danach dieses PowerShell-Fenster schließen.
 5. Den Projektordner wieder im Windows-Explorer öffnen, in die Adresszeile `powershell` eingeben und Enter drücken.
 
-Danach besteht der normale Arbeitsablauf aus zwei Befehlen.
+Danach besteht der normale Arbeitsablauf aus vier Befehlen.
 
-Erstens: Eingabedatei einlesen und die noch nicht geprüften Datensätze nach `output\unannotiert.csv` schreiben.
+Erstens: Eingabedatei bereinigen und Suchspalten ergänzen.
 
 ```powershell
-uv run bookmatcher "data\Buchliste.xlsx"
+uv run bookmatcher-cleanup "data\Buchliste.xlsx" output\Buchliste_bereinigt.xlsx
+```
+
+Zweitens: Bereinigte Eingabedatei einlesen und die noch nicht annotierten Titel nach `output\unannotiert.csv` schreiben.
+
+```powershell
+uv run bookmatcher output\Buchliste_bereinigt.xlsx
 ```
 
 Das Programm fragt dabei, ob eine manuelle Zeilenauswahl verwendet werden soll. Für den normalen Fall einfach `n` eingeben und Enter drücken; dann werden alle Datensätze übernommen.
 
-Zweitens: K10plus-Matching für die unannotierten Datensätze ausführen.
+Drittens: K10plus-Matching für die unannotierten Datensätze ausführen.
 
 ```powershell
 uv run python -m bookmatcher.batch output\unannotiert.csv output\unannotiert_matches.csv
@@ -64,7 +70,7 @@ uv run python -m bookmatcher.batch output\unannotiert.csv output\unannotiert_mat
 
 Das Ergebnis steht anschließend in `output\unannotiert_matches.csv`.
 
-Drittens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs
+Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs
 ergänzen.
 
 ```powershell
@@ -81,17 +87,24 @@ Einmalig das Setup starten:
 bash scripts/setup-linux.sh
 ```
 
-Danach besteht der normale Arbeitsablauf aus zwei Befehlen.
+Danach besteht der normale Arbeitsablauf aus vier Befehlen.
 
-Erstens: Eingabedatei einlesen und die noch nicht geprüften Datensätze nach `output/unannotiert.csv` schreiben.
+Erstens: Eingabedatei bereinigen und Suchspalten ergänzen.
 
 ```bash
-uv run bookmatcher "data/Buchliste.xlsx"
+uv run bookmatcher-cleanup "data/Buchliste.xlsx" output/Buchliste_bereinigt.xlsx
+```
+
+Zweitens: Bereinigte Eingabedatei einlesen und die noch nicht geprüften
+Datensätze nach `output/unannotiert.csv` schreiben.
+
+```bash
+uv run bookmatcher output/Buchliste_bereinigt.xlsx
 ```
 
 Das Programm fragt dabei, ob eine manuelle Zeilenauswahl verwendet werden soll. Für den normalen Fall einfach `n` eingeben und Enter drücken; dann werden alle Datensätze übernommen.
 
-Zweitens: K10plus-Matching für die unannotierten Datensätze ausführen.
+Drittens: K10plus-Matching für die unannotierten Datensätze ausführen.
 
 ```bash
 uv run python -m bookmatcher.batch output/unannotiert.csv output/unannotiert_matches.csv
@@ -99,7 +112,7 @@ uv run python -m bookmatcher.batch output/unannotiert.csv output/unannotiert_mat
 
 Das Ergebnis steht anschließend in `output/unannotiert_matches.csv`.
 
-Drittens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs
+Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs
 ergänzen.
 
 ```bash
@@ -114,6 +127,34 @@ Grenzen des automatischen Setups: Der Rechner braucht Internetzugang, PowerShell
 
 ## `bookmatcher`
 
+### Bereinigung der Eingabedaten
+
+Der Befehl `bookmatcher-cleanup` ergänzt die Arbeits- und Suchspalten
+`Such-Titel` und `Band`, ohne die ursprünglichen Spalten zu entfernen.
+
+```bash
+uv run bookmatcher-cleanup data/Buchliste.xlsx output/Buchliste_bereinigt.xlsx
+```
+
+`Such-Titel` enthält den für die Katalogsuche bereinigten Titel. Numerische
+Bandangaben werden in die Spalte `Band` ausgelagert und dabei normalisiert:
+
+```text
+Deutsche Wortforschung in europäischen Bezügen Band 6,1
+→ Such-Titel: Deutsche Wortforschung in europäischen Bezügen
+→ Band:       6,1
+
+Sudetendeutscher Wortatlas Band III
+→ Such-Titel: Sudetendeutscher Wortatlas
+→ Band:       3
+
+Thüringisches Wörterbuch V.Band 12., 13. und 14. Lieferung
+→ Such-Titel: Thüringisches Wörterbuch
+→ Band:       5
+```
+
+Rein textuelle Bandangaben werden nicht als `Band` übernommen.
+
 ### Aufteilen der Eingabedaten
 
 Der CLI-Befehl `bookmatcher` liest die Eingabedatei ein, prüft die Pflichtspalten und teilt die Datensätze anhand der Spalte `Anzahl des Exemplares in Thulb` in zwei CSV-Dateien auf:
@@ -127,7 +168,11 @@ Eine Zeile gilt als annotiert, sobald die Annotationsspalte nicht leer ist. Dabe
 
 ### Kandidatensuche
 
-Für den normalen Workflow werden nur Autor und Titel verwendet. Der Autor wird für die Anfrage auf den Nachnamen reduziert, weil Vornamen in historischen und bibliographischen Daten unterschiedlich geschrieben oder transliteriert sein können.
+Für den normalen Workflow werden Autor und Titel verwendet. Der Autor wird für
+die Anfrage auf den Nachnamen reduziert, weil Vornamen in historischen und
+bibliographischen Daten unterschiedlich geschrieben oder transliteriert sein
+können. Für das folgende Beispiel würde beim vollständigen Namen kein Suchergebnis
+zurückgegeben werden, da in der Datenbank 'Wladimir' abgespeichert ist. 
 
 ```text
 Admoni, Vladimir
@@ -140,11 +185,26 @@ Die K10plus-Anfrage entspricht konzeptionell:
 pica.tit=<Titel> AND pica.per=<Nachname>
 ```
 
-Da Titel und Name bereits weit gefasst sind, wird kein Fallback auf reine Autor- oder Titel-Suchen durchgeführt.
+Wenn die bereinigte Eingabedatei eine Spalte `Band` enthält, wird diese als
+zusätzliche Einschränkung über den K10plus-Index `pica.tmb` verwendet:
+
+```text
+pica.tit=<Such-Titel> AND pica.per=<Nachname> AND pica.tmb=<Band>
+```
+
+Bei vorhandener Bandangabe werden nur Treffer mit passender Bandzählung
+übernommen. Wenn diese striktere Suche keine Treffer liefert, wird kein
+breiterer Fallback ohne Band ausgeführt. Da Titel und Name bereits weit gefasst
+sind, wird außerdem kein Fallback auf reine Autor- oder Titel-Suchen
+durchgeführt. Bei mehreren Bandangaben wird zudem nur die erste verwendet. 
 
 ### Titelnormalisierung
 
-Vor der Kataloganfrage wird der Titel leicht normalisiert. Entfernt werden nur klar erkennbare bibliographische Zusätze wie Auflagen-, Band- oder ähnliche Angaben; der eigentliche Titel wird nicht fuzzy verändert.
+Vor der Kataloganfrage wird der Titel leicht normalisiert. Entfernt werden klar
+erkennbare bibliographische Zusätze wie Auflagen-, Band- oder ähnliche Angaben;
+der eigentliche Titel wird nicht fuzzy verändert. Im empfohlenen Workflow ist
+diese Normalisierung bereits durch `bookmatcher-cleanup` sichtbar in
+`Such-Titel` und `Band` gespeichert.
 
 ```text
 Althochdeutsches Lesebuch (11. Aufl.)
@@ -197,12 +257,10 @@ uv run bookmatcher-reconstruct data/Buchliste.xlsx output/unannotiert_matches.cs
 ```
 
 Als Ausgabeformat werden `.xlsx` und `.csv` unterstützt. Mehrere PPN-Treffer
-werden in der Spalte `PPN` kommasepariert ausgegeben. Die Spalte
-`Anzahl des Exemplares in Thulb` enthält bei automatisch geprüften Zeilen die
-Anzahl der im Ergebnis enthaltenen PPN-Treffer; bei nicht geprüften Zeilen bleibt
-der ursprüngliche Wert erhalten. XLSX-Ausgaben erhalten außerdem eine einfache
-Tabellenformatierung mit schwarzer Kopfzeile, Filterzeile, fixierter Kopfzeile
-und alternierender Spaltenfärbung.
+werden in der Spalte `PPN` kommasepariert zur einfachen Verifizierung ausgegeben. 
+Die Spalte `Anzahl des Exemplares in Thulb` enthält bei automatisch geprüften 
+Zeilen die Anzahl der im Ergebnis enthaltenen PPN-Treffer; bei nicht geprüften 
+Zeilen bleibt der ursprüngliche Wert erhalten. 
 
 ## Evaluation
 
