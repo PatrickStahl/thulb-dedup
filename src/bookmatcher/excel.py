@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
+from openpyxl.styles import Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 from .models import Book
 
@@ -13,6 +15,8 @@ YEAR_COLUMN = "Erscheinungsjahr"
 TITLE_COLUMN = "Titel (Auflage)"
 ANNOTATION_COLUMN = "Anzahl des Exemplares in Thulb"
 SOURCE_ROW_COLUMN = "Quellzeile"
+PPN_COLUMN = "PPN"
+CANDIDATE_PPN_COLUMN = "candidate_ppn"
 
 REQUIRED_COLUMNS = {
     AUTHOR_COLUMN,
@@ -35,17 +39,28 @@ def load_excel(path: str | Path, sheet_name: str | int = 0) -> pd.DataFrame:
     ``Quellzeile`` points to the row number in the original file (header is row
     1). If an input file already contains ``Quellzeile``, it is preserved.
     """
+    frame = _read_table(path, sheet_name=sheet_name)
+
+    return _prepare_source_frame(frame)
+
+
+def _read_table(path: str | Path, sheet_name: str | int = 0) -> pd.DataFrame:
     path = Path(path)
     suffix = path.suffix.lower()
 
     if suffix == ".csv":
-        frame = pd.read_csv(path, sep=None, engine="python")
-    elif suffix in {".xlsx", ".xlsm"}:
-        frame = pd.read_excel(path, sheet_name=sheet_name, engine="openpyxl")
-    else:
-        raise ValueError(
-            "Nicht unterstütztes Eingabeformat. Unterstützt werden: .csv, .xlsx, .xlsm"
-        )
+        return pd.read_csv(path, sep=None, engine="python", encoding="utf-8-sig")
+
+    if suffix in {".xlsx", ".xlsm"}:
+        return pd.read_excel(path, sheet_name=sheet_name, engine="openpyxl")
+
+    raise ValueError(
+        "Nicht unterstütztes Eingabeformat. Unterstützt werden: .csv, .xlsx, .xlsm"
+    )
+
+
+def _prepare_source_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    frame = frame.copy()
 
     missing = REQUIRED_COLUMNS.difference(frame.columns)
     if missing:
@@ -60,6 +75,206 @@ def load_excel(path: str | Path, sheet_name: str | int = 0) -> pd.DataFrame:
     frame = frame.dropna(how="all", subset=source_columns).copy()
 
     return frame
+
+
+def reconstruct_original_output(
+    input_path: str | Path,
+    matches_path: str | Path,
+    output_path: str | Path,
+    *,
+    sheet_name: str | int = 0,
+    ppn_column: str = PPN_COLUMN,
+) -> Path:
+    """Write the original table layout enriched with match counts and PPNs.
+
+    Rows keep the same columns and order as the original input, with one PPN
+    column appended at the end. When one source row has multiple candidate PPNs,
+    they are written as a comma-separated list.
+    """
+    input_frame = _read_table(input_path, sheet_name=sheet_name)
+    keep_source_row = SOURCE_ROW_COLUMN in input_frame.columns
+    source_frame = _prepare_source_frame(input_frame)
+    matches = pd.read_csv(
+        matches_path,
+        sep=None,
+        engine="python",
+        encoding="utf-8-sig",
+    )
+
+    output = append_match_results_to_original(
+        source_frame,
+        matches,
+        keep_source_row=keep_source_row,
+        ppn_column=ppn_column,
+    )
+
+    output_path = Path(output_path)
+    _write_table(output, output_path)
+
+    return output_path
+
+
+def append_match_results_to_original(
+    source_frame: pd.DataFrame,
+    matches: pd.DataFrame,
+    *,
+    keep_source_row: bool = False,
+    ppn_column: str = PPN_COLUMN,
+) -> pd.DataFrame:
+    """Return the original rows with match count in the annotation column.
+
+    ``matches`` is expected to be the output of ``bookmatcher.batch``. The
+    result contains one row per original input row. Multiple candidate PPNs are
+    joined in the appended PPN column.
+    """
+    missing = {SOURCE_ROW_COLUMN, CANDIDATE_PPN_COLUMN}.difference(matches.columns)
+    if missing:
+        missing_text = ", ".join(sorted(missing))
+        raise ValueError(f"Fehlende Ergebnis-Spalten: {missing_text}")
+
+    source_frame = source_frame.copy()
+    if SOURCE_ROW_COLUMN not in source_frame.columns:
+        source_frame.insert(0, SOURCE_ROW_COLUMN, source_frame.index + 2)
+
+    matches_by_source_row = _group_candidate_ppns(matches)
+    output_rows: list[dict[str, object]] = []
+
+    for _, source_row in source_frame.iterrows():
+        row = source_row.to_dict()
+        source_key = _source_row_key(row.get(SOURCE_ROW_COLUMN))
+        ppns = matches_by_source_row.get(source_key)
+
+        if ppns is None:
+            row[ppn_column] = ""
+            output_rows.append(row)
+            continue
+
+        row[ANNOTATION_COLUMN] = len(ppns)
+
+        row[ppn_column] = ", ".join(ppns)
+        output_rows.append(row)
+
+    frame_columns = list(source_frame.columns)
+    if ppn_column not in frame_columns:
+        frame_columns.append(ppn_column)
+
+    output = pd.DataFrame(output_rows, columns=frame_columns)
+    output_columns = _output_columns(
+        source_frame.columns,
+        keep_source_row=keep_source_row,
+        ppn_column=ppn_column,
+    )
+
+    return output.loc[:, output_columns]
+
+
+def _group_candidate_ppns(matches: pd.DataFrame) -> dict[int, list[str]]:
+    grouped: dict[int, list[str]] = {}
+
+    for _, match in matches.iterrows():
+        source_key = _source_row_key(match.get(SOURCE_ROW_COLUMN))
+        if source_key is None:
+            continue
+
+        grouped.setdefault(source_key, [])
+
+        ppn = _optional_text(match.get(CANDIDATE_PPN_COLUMN))
+        if ppn is not None:
+            grouped[source_key].append(ppn)
+
+    return grouped
+
+
+def _source_row_key(value: object) -> int | None:
+    if pd.isna(value):
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    try:
+        return int(float(text))
+    except ValueError:
+        return None
+
+
+def _output_columns(
+    source_columns: Iterable[str],
+    *,
+    keep_source_row: bool,
+    ppn_column: str,
+) -> list[str]:
+    columns = [
+        column
+        for column in source_columns
+        if keep_source_row or column != SOURCE_ROW_COLUMN
+    ]
+
+    columns = [column for column in columns if column != ppn_column]
+    columns.append(ppn_column)
+
+    return columns
+
+
+def _write_table(frame: pd.DataFrame, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    suffix = path.suffix.lower()
+
+    if suffix == ".csv":
+        frame.to_csv(path, index=False, encoding="utf-8-sig")
+        return
+
+    if suffix == ".xlsx":
+        with pd.ExcelWriter(path, engine="openpyxl") as writer:
+            frame.to_excel(writer, index=False)
+            worksheet = writer.sheets["Sheet1"]
+            _style_output_sheet(worksheet)
+        return
+
+    raise ValueError(
+        "Nicht unterstütztes Ausgabeformat. Unterstützt werden: .csv, .xlsx"
+    )
+
+
+def _style_output_sheet(worksheet) -> None:
+    header_fill = PatternFill("solid", fgColor="000000")
+    header_font = Font(color="FFFFFF", bold=True)
+    alternate_fill = PatternFill("solid", fgColor="D9D9D9")
+    border = Border(
+        left=Side(style="thin", color="000000"),
+        right=Side(style="thin", color="000000"),
+        top=Side(style="thin", color="000000"),
+        bottom=Side(style="thin", color="000000"),
+    )
+
+    worksheet.freeze_panes = "A2"
+    worksheet.auto_filter.ref = worksheet.dimensions
+
+    for cell in worksheet[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+
+    for column_index, column_cells in enumerate(
+        worksheet.iter_cols(),
+        start=1,
+    ):
+        if column_index % 2 == 1:
+            for cell in column_cells[1:]:
+                cell.fill = alternate_fill
+
+        max_length = max(
+            len(str(cell.value)) if cell.value is not None else 0
+            for cell in column_cells
+        )
+        worksheet.column_dimensions[get_column_letter(column_index)].width = min(
+            max(max_length + 2, 10),
+            20,
+        )
+
+        for cell in column_cells:
+            cell.border = border
 
 
 def is_annotated(value: object) -> bool:

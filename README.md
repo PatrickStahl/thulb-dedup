@@ -64,6 +64,13 @@ uv run python -m bookmatcher.batch output\unannotiert.csv output\unannotiert_mat
 
 Das Ergebnis steht anschließend in `output\unannotiert_matches.csv`.
 
+Drittens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs
+ergänzen.
+
+```powershell
+uv run bookmatcher-reconstruct "data\Buchliste.xlsx" output\unannotiert_matches.csv output\Buchliste_mit_ppn.xlsx
+```
+
 ## Schnellstart unter Linux
 
 Die folgenden Schritte gehen davon aus, dass die Buchliste im Projektordner unter `data/Buchliste.xlsx` liegt. Wenn die Datei anders heißt, muss nur dieser Dateiname im ersten Arbeitsbefehl angepasst werden.
@@ -91,6 +98,13 @@ uv run python -m bookmatcher.batch output/unannotiert.csv output/unannotiert_mat
 ```
 
 Das Ergebnis steht anschließend in `output/unannotiert_matches.csv`.
+
+Drittens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs
+ergänzen.
+
+```bash
+uv run bookmatcher-reconstruct "data/Buchliste.xlsx" output/unannotiert_matches.csv output/Buchliste_mit_ppn.xlsx
+```
 
 ## Automatisches Setup
 
@@ -171,6 +185,24 @@ no_results     keine Kandidaten für Titel und Autor
 missing_input  Titel oder Autor fehlt
 error          technische Anfrage fehlgeschlagen
 ```
+
+### Rekonstruktion der Buchliste
+
+Nach dem Matching kann wieder eine Datei in der ursprünglichen Buchlisten-Struktur
+erzeugt werden. Dabei bleiben die ursprünglichen Spalten in ihrer Reihenfolge
+erhalten; zusätzlich wird am Ende die Spalte `PPN` ergänzt.
+
+```bash
+uv run bookmatcher-reconstruct data/Buchliste.xlsx output/unannotiert_matches.csv output/Buchliste_mit_ppn.xlsx
+```
+
+Als Ausgabeformat werden `.xlsx` und `.csv` unterstützt. Mehrere PPN-Treffer
+werden in der Spalte `PPN` kommasepariert ausgegeben. Die Spalte
+`Anzahl des Exemplares in Thulb` enthält bei automatisch geprüften Zeilen die
+Anzahl der im Ergebnis enthaltenen PPN-Treffer; bei nicht geprüften Zeilen bleibt
+der ursprüngliche Wert erhalten. XLSX-Ausgaben erhalten außerdem eine einfache
+Tabellenformatierung mit schwarzer Kopfzeile, Filterzeile, fixierter Kopfzeile
+und alternierender Spaltenfärbung.
 
 ## Evaluation
 

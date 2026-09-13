@@ -21,6 +21,7 @@ dev = [
 
 [project.scripts]
 bookmatcher = "bookmatcher.main:main"
+bookmatcher-reconstruct = "bookmatcher.reconstruct:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
