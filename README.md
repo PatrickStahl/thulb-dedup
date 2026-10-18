@@ -68,7 +68,7 @@ uv run python -m bookmatcher.batch output\unannotiert.csv output\unannotiert_mat
 
 Das Ergebnis steht anschließend in `output\unannotiert_matches.csv`.
 
-Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs
+Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs und EPNs
 ergänzen.
 
 ```powershell
@@ -110,7 +110,7 @@ uv run python -m bookmatcher.batch output/unannotiert.csv output/unannotiert_mat
 
 Das Ergebnis steht anschließend in `output/unannotiert_matches.csv`.
 
-Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs
+Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs und EPNs
 ergänzen.
 
 ```bash
@@ -233,6 +233,7 @@ candidate_authors
 candidate_year
 year_distance
 error
+candidate_epns
 ```
 
 `match_status` kann folgende Werte haben:
@@ -248,14 +249,16 @@ error          technische Anfrage fehlgeschlagen
 
 Nach dem Matching kann wieder eine Datei in der ursprünglichen Buchlisten-Struktur
 erzeugt werden. Dabei bleiben die ursprünglichen Spalten in ihrer Reihenfolge
-erhalten; zusätzlich wird am Ende die Spalte `PPN` ergänzt.
+erhalten; zusätzlich werden am Ende die Spalten `PPN` und `EPN` ergänzt.
 
 ```bash
 uv run bookmatcher-reconstruct data/Buchliste.xlsx output/unannotiert_matches.csv output/Buchliste_mit_ppn.xlsx
 ```
 
 Als Ausgabeformat werden `.xlsx` und `.csv` unterstützt. Mehrere PPN-Treffer
-werden in der Spalte `PPN` kommasepariert zur einfachen Verifizierung ausgegeben. 
+werden in der Spalte `PPN` kommasepariert zur einfachen Verifizierung ausgegeben.
+Die EPNs aller ausgegebenen Kandidaten stehen kommasepariert direkt daneben in
+der Spalte `EPN`; ein Kandidat kann mehrere EPNs haben.
 Die Spalte `Anzahl des Exemplares in Thulb` enthält bei automatisch geprüften 
 Zeilen die Anzahl der im Ergebnis enthaltenen PPN-Treffer; bei nicht geprüften 
 Zeilen bleibt der ursprüngliche Wert erhalten. 

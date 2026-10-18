@@ -262,6 +262,7 @@ def _parse_pica_record(
 
     authors = _extract_authors(record)
     volume = _extract_volume(record)
+    epns = _all_subfields(record, field_tag="203@", code="0")
 
     return CatalogRecord(
         ppn=ppn,
@@ -273,6 +274,7 @@ def _parse_pica_record(
             encoding="unicode",
         ),
         volume=volume,
+        epns=epns,
     )
 
 
@@ -394,6 +396,23 @@ def _first_subfield(
             return value
 
     return None
+
+
+def _all_subfields(
+    record: ET.Element,
+    field_tag: str,
+    code: str,
+) -> tuple[str, ...]:
+    return tuple(
+        value
+        for field in record.iter()
+        if _local_name(field.tag) == "datafield"
+        and field.attrib.get("tag") == field_tag
+        for subfield in field
+        if _local_name(subfield.tag) == "subfield"
+        and subfield.attrib.get("code") == code
+        if (value := (subfield.text or "").strip())
+    )
 
 
 def _subfield_value(

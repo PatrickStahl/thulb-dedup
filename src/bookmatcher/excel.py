@@ -17,7 +17,9 @@ TITLE_COLUMN = "Titel (Auflage)"
 ANNOTATION_COLUMN = "Anzahl des Exemplares in Thulb"
 SOURCE_ROW_COLUMN = "Quellzeile"
 PPN_COLUMN = "PPN"
+EPN_COLUMN = "EPN"
 CANDIDATE_PPN_COLUMN = "candidate_ppn"
+CANDIDATE_EPNS_COLUMN = "candidate_epns"
 
 REQUIRED_COLUMNS = {
     AUTHOR_COLUMN,
@@ -86,11 +88,10 @@ def reconstruct_original_output(
     sheet_name: str | int = 0,
     ppn_column: str = PPN_COLUMN,
 ) -> Path:
-    """Write the original table layout enriched with match counts and PPNs.
+    """Write the original table layout enriched with match counts, PPNs and EPNs.
 
-    Rows keep the same columns and order as the original input, with one PPN
-    column appended at the end. When one source row has multiple candidate PPNs,
-    they are written as a comma-separated list.
+    Rows keep the same columns and order as the original input, with PPN and EPN
+    columns appended at the end. Multiple identifiers are comma-separated.
     """
     input_frame = _read_table(input_path, sheet_name=sheet_name)
     keep_source_row = SOURCE_ROW_COLUMN in input_frame.columns
@@ -100,6 +101,7 @@ def reconstruct_original_output(
         sep=None,
         engine="python",
         encoding="utf-8-sig",
+        dtype={CANDIDATE_EPNS_COLUMN: str},
     )
 
     output = append_match_results_to_original(
@@ -160,10 +162,14 @@ def append_match_results_to_original(
     """Return the original rows with match count in the annotation column.
 
     ``matches`` is expected to be the output of ``bookmatcher.batch``. The
-    result contains one row per original input row. Multiple candidate PPNs are
-    joined in the appended PPN column.
+    result contains one row per original input row. Candidate PPNs and EPNs are
+    joined in the appended PPN and EPN columns.
     """
-    missing = {SOURCE_ROW_COLUMN, CANDIDATE_PPN_COLUMN}.difference(matches.columns)
+    missing = {
+        SOURCE_ROW_COLUMN,
+        CANDIDATE_PPN_COLUMN,
+        CANDIDATE_EPNS_COLUMN,
+    }.difference(matches.columns)
     if missing:
         missing_text = ", ".join(sorted(missing))
         raise ValueError(f"Fehlende Ergebnis-Spalten: {missing_text}")
@@ -173,6 +179,7 @@ def append_match_results_to_original(
         source_frame.insert(0, SOURCE_ROW_COLUMN, source_frame.index + 2)
 
     matches_by_source_row = _group_candidate_ppns(matches)
+    epns_by_source_row = _group_candidate_epns(matches)
     output_rows: list[dict[str, object]] = []
 
     for _, source_row in source_frame.iterrows():
@@ -182,17 +189,21 @@ def append_match_results_to_original(
 
         if ppns is None:
             row[ppn_column] = ""
+            row[EPN_COLUMN] = ""
             output_rows.append(row)
             continue
 
         row[ANNOTATION_COLUMN] = len(ppns)
 
         row[ppn_column] = ", ".join(ppns)
+        row[EPN_COLUMN] = ", ".join(epns_by_source_row.get(source_key, []))
         output_rows.append(row)
 
     frame_columns = list(source_frame.columns)
     if ppn_column not in frame_columns:
         frame_columns.append(ppn_column)
+    if EPN_COLUMN not in frame_columns:
+        frame_columns.append(EPN_COLUMN)
 
     output = pd.DataFrame(output_rows, columns=frame_columns)
     output_columns = _output_columns(
@@ -217,6 +228,23 @@ def _group_candidate_ppns(matches: pd.DataFrame) -> dict[int, list[str]]:
         ppn = _optional_text(match.get(CANDIDATE_PPN_COLUMN))
         if ppn is not None:
             grouped[source_key].append(ppn)
+
+    return grouped
+
+
+def _group_candidate_epns(matches: pd.DataFrame) -> dict[int, list[str]]:
+    grouped: dict[int, list[str]] = {}
+
+    for _, match in matches.iterrows():
+        source_key = _source_row_key(match.get(SOURCE_ROW_COLUMN))
+        if source_key is None:
+            continue
+
+        epns = _optional_text(match.get(CANDIDATE_EPNS_COLUMN))
+        if epns is not None:
+            grouped.setdefault(source_key, []).extend(
+                epn for part in epns.split(",") if (epn := part.strip())
+            )
 
     return grouped
 
@@ -247,8 +275,8 @@ def _output_columns(
         if keep_source_row or column != SOURCE_ROW_COLUMN
     ]
 
-    columns = [column for column in columns if column != ppn_column]
-    columns.append(ppn_column)
+    columns = [column for column in columns if column not in {ppn_column, EPN_COLUMN}]
+    columns.extend((ppn_column, EPN_COLUMN))
 
     return columns
 

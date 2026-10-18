@@ -10,7 +10,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Rekonstruiert die ursprüngliche Buchlisten-Struktur "
-            "und ergänzt Trefferanzahl sowie PPN."
+            "und ergänzt Trefferanzahl sowie PPN und EPN."
         )
     )
     parser.add_argument(

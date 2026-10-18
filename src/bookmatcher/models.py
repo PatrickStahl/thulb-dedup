@@ -22,3 +22,4 @@ class CatalogRecord:
     year: int | None
     raw_xml: str
     volume: str | None = None
+    epns: tuple[str, ...] = ()
