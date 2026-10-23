@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -17,9 +18,9 @@ TITLE_COLUMN = "Titel (Auflage)"
 ANNOTATION_COLUMN = "Anzahl des Exemplares in Thulb"
 SOURCE_ROW_COLUMN = "Quellzeile"
 PPN_COLUMN = "PPN"
-EPN_COLUMN = "EPN"
+SIGNATURE_COLUMN = "Signatur"
 CANDIDATE_PPN_COLUMN = "candidate_ppn"
-CANDIDATE_EPNS_COLUMN = "candidate_epns"
+CANDIDATE_SIGNATURES_COLUMN = "candidate_signatures"
 
 REQUIRED_COLUMNS = {
     AUTHOR_COLUMN,
@@ -88,9 +89,9 @@ def reconstruct_original_output(
     sheet_name: str | int = 0,
     ppn_column: str = PPN_COLUMN,
 ) -> Path:
-    """Write the original table layout enriched with match counts, PPNs and EPNs.
+    """Write the original table with match counts, PPNs and signatures.
 
-    Rows keep the same columns and order as the original input, with PPN and EPN
+    Rows keep the same columns and order as the original input, with PPN and Signatur
     columns appended at the end. Multiple identifiers are comma-separated.
     """
     input_frame = _read_table(input_path, sheet_name=sheet_name)
@@ -101,7 +102,7 @@ def reconstruct_original_output(
         sep=None,
         engine="python",
         encoding="utf-8-sig",
-        dtype={CANDIDATE_EPNS_COLUMN: str},
+        dtype={CANDIDATE_SIGNATURES_COLUMN: str},
     )
 
     output = append_match_results_to_original(
@@ -162,13 +163,13 @@ def append_match_results_to_original(
     """Return the original rows with match count in the annotation column.
 
     ``matches`` is expected to be the output of ``bookmatcher.batch``. The
-    result contains one row per original input row. Candidate PPNs and EPNs are
-    joined in the appended PPN and EPN columns.
+    result contains one row per original input row. Candidate PPNs and signatures
+    are joined in the appended PPN and Signatur columns.
     """
     missing = {
         SOURCE_ROW_COLUMN,
         CANDIDATE_PPN_COLUMN,
-        CANDIDATE_EPNS_COLUMN,
+        CANDIDATE_SIGNATURES_COLUMN,
     }.difference(matches.columns)
     if missing:
         missing_text = ", ".join(sorted(missing))
@@ -179,7 +180,7 @@ def append_match_results_to_original(
         source_frame.insert(0, SOURCE_ROW_COLUMN, source_frame.index + 2)
 
     matches_by_source_row = _group_candidate_ppns(matches)
-    epns_by_source_row = _group_candidate_epns(matches)
+    signatures_by_source_row = _group_candidate_signatures(matches)
     output_rows: list[dict[str, object]] = []
 
     for _, source_row in source_frame.iterrows():
@@ -189,21 +190,23 @@ def append_match_results_to_original(
 
         if ppns is None:
             row[ppn_column] = ""
-            row[EPN_COLUMN] = ""
+            row[SIGNATURE_COLUMN] = ""
             output_rows.append(row)
             continue
 
         row[ANNOTATION_COLUMN] = len(ppns)
 
         row[ppn_column] = ", ".join(ppns)
-        row[EPN_COLUMN] = ", ".join(epns_by_source_row.get(source_key, []))
+        row[SIGNATURE_COLUMN] = ", ".join(
+            signatures_by_source_row.get(source_key, [])
+        )
         output_rows.append(row)
 
     frame_columns = list(source_frame.columns)
     if ppn_column not in frame_columns:
         frame_columns.append(ppn_column)
-    if EPN_COLUMN not in frame_columns:
-        frame_columns.append(EPN_COLUMN)
+    if SIGNATURE_COLUMN not in frame_columns:
+        frame_columns.append(SIGNATURE_COLUMN)
 
     output = pd.DataFrame(output_rows, columns=frame_columns)
     output_columns = _output_columns(
@@ -232,7 +235,7 @@ def _group_candidate_ppns(matches: pd.DataFrame) -> dict[int, list[str]]:
     return grouped
 
 
-def _group_candidate_epns(matches: pd.DataFrame) -> dict[int, list[str]]:
+def _group_candidate_signatures(matches: pd.DataFrame) -> dict[int, list[str]]:
     grouped: dict[int, list[str]] = {}
 
     for _, match in matches.iterrows():
@@ -240,11 +243,9 @@ def _group_candidate_epns(matches: pd.DataFrame) -> dict[int, list[str]]:
         if source_key is None:
             continue
 
-        epns = _optional_text(match.get(CANDIDATE_EPNS_COLUMN))
-        if epns is not None:
-            grouped.setdefault(source_key, []).extend(
-                epn for part in epns.split(",") if (epn := part.strip())
-            )
+        signatures = _optional_text(match.get(CANDIDATE_SIGNATURES_COLUMN))
+        if signatures is not None:
+            grouped.setdefault(source_key, []).extend(json.loads(signatures))
 
     return grouped
 
@@ -275,8 +276,12 @@ def _output_columns(
         if keep_source_row or column != SOURCE_ROW_COLUMN
     ]
 
-    columns = [column for column in columns if column not in {ppn_column, EPN_COLUMN}]
-    columns.extend((ppn_column, EPN_COLUMN))
+    columns = [
+        column
+        for column in columns
+        if column not in {ppn_column, SIGNATURE_COLUMN}
+    ]
+    columns.extend((ppn_column, SIGNATURE_COLUMN))
 
     return columns
 

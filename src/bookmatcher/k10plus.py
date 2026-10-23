@@ -262,7 +262,7 @@ def _parse_pica_record(
 
     authors = _extract_authors(record)
     volume = _extract_volume(record)
-    epns = _all_subfields(record, field_tag="203@", code="0")
+    signatures = _all_subfields(record, field_tag="209A", code="a")
 
     return CatalogRecord(
         ppn=ppn,
@@ -274,7 +274,7 @@ def _parse_pica_record(
             encoding="unicode",
         ),
         volume=volume,
-        epns=epns,
+        signatures=signatures,
     )
 
 

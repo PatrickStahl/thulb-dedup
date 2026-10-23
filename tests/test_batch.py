@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 
 from bookmatcher.batch import run_batch
@@ -33,7 +35,7 @@ class FakeClient:
                 year=1843,
                 raw_xml="",
                 volume=volume,
-                epns=("0012345678", "4968482507"),
+                signatures=("LS, 42", "St 123"),
             )
         ]
 
@@ -70,9 +72,11 @@ def test_run_batch_prefers_cleanup_columns_for_catalog_query(tmp_path):
         }
     ]
 
-    result = pd.read_csv(output_path, dtype={"candidate_epns": str})
+    result = pd.read_csv(output_path)
 
     assert result[SEARCH_TITLE_COLUMN].tolist() == ["Clean Title"]
     assert result[VOLUME_COLUMN].tolist() == [3]
     assert result["candidate_ppn"].tolist() == ["PPN-1"]
-    assert result["candidate_epns"].tolist() == ["0012345678, 4968482507"]
+    assert result["candidate_signatures"].map(json.loads).tolist() == [
+        ["LS, 42", "St 123"]
+    ]

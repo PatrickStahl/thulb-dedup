@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import time
 from pathlib import Path
 from typing import Iterable
@@ -28,7 +29,7 @@ RESULT_COLUMNS = [
     "candidate_year",
     "year_distance",
     "error",
-    "candidate_epns",
+    "candidate_signatures",
 ]
 
 
@@ -233,7 +234,9 @@ def run_batch(
                     candidate_count=len(records),
                     candidate_rank=rank,
                     candidate_ppn=record.ppn,
-                    candidate_epns=", ".join(record.epns),
+                    candidate_signatures=json.dumps(
+                        record.signatures, ensure_ascii=False
+                    ),
                     candidate_title=record.title,
                     candidate_authors=" | ".join(
                         record.authors
@@ -345,7 +348,7 @@ def _write_result(
     candidate_count: int | str = "",
     candidate_rank: int | str = "",
     candidate_ppn: str | None = "",
-    candidate_epns: str = "",
+    candidate_signatures: str = "",
     candidate_title: str | None = "",
     candidate_authors: str = "",
     candidate_year: int | str | None = "",
@@ -362,7 +365,7 @@ def _write_result(
             "candidate_ppn": (
                 candidate_ppn or ""
             ),
-            "candidate_epns": candidate_epns,
+            "candidate_signatures": candidate_signatures,
             "candidate_title": (
                 candidate_title or ""
             ),

@@ -47,18 +47,22 @@ def test_parse_pica_record_falls_back_to_multipart_title_and_volume():
     assert result.volume == "3"
 
 
-def test_parse_pica_record_collects_all_copy_epns():
+def test_parse_pica_record_collects_all_signatures():
     record = ET.fromstring(
         """
         <record xmlns="info:srw/schema/5/picaXML-v1.0">
           <datafield tag="003@"><subfield code="0">03040472X</subfield></datafield>
-          <datafield tag="203@"><subfield code="0">0012345678</subfield></datafield>
+          <datafield tag="209A" occurrence="01">
+            <subfield code="a">LS, 42</subfield><subfield code="x">00</subfield>
+          </datafield>
+          <datafield tag="209A" occurrence="02">
+            <subfield code="a">St 123</subfield><subfield code="x">00</subfield>
+          </datafield>
           <datafield tag="203@"><subfield code="0">4968482507</subfield></datafield>
-          <datafield tag="203S"><subfield code="0">not-a-current-epn</subfield></datafield>
         </record>
         """
     )
 
     result = _parse_pica_record(record)
 
-    assert result.epns == ("0012345678", "4968482507")
+    assert result.signatures == ("LS, 42", "St 123")

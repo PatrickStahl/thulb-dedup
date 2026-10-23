@@ -68,7 +68,7 @@ uv run python -m bookmatcher.batch output\unannotiert.csv output\unannotiert_mat
 
 Das Ergebnis steht anschließend in `output\unannotiert_matches.csv`.
 
-Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs und EPNs
+Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs und Signaturen
 ergänzen.
 
 ```powershell
@@ -110,7 +110,7 @@ uv run python -m bookmatcher.batch output/unannotiert.csv output/unannotiert_mat
 
 Das Ergebnis steht anschließend in `output/unannotiert_matches.csv`.
 
-Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs und EPNs
+Viertens: Die ursprüngliche Tabellenstruktur wiederherstellen und die PPNs und Signaturen
 ergänzen.
 
 ```bash
@@ -233,7 +233,7 @@ candidate_authors
 candidate_year
 year_distance
 error
-candidate_epns
+candidate_signatures
 ```
 
 `match_status` kann folgende Werte haben:
@@ -249,7 +249,7 @@ error          technische Anfrage fehlgeschlagen
 
 Nach dem Matching kann wieder eine Datei in der ursprünglichen Buchlisten-Struktur
 erzeugt werden. Dabei bleiben die ursprünglichen Spalten in ihrer Reihenfolge
-erhalten; zusätzlich werden am Ende die Spalten `PPN` und `EPN` ergänzt.
+erhalten; zusätzlich werden am Ende die Spalten `PPN` und `Signatur` ergänzt.
 
 ```bash
 uv run bookmatcher-reconstruct data/Buchliste.xlsx output/unannotiert_matches.csv output/Buchliste_mit_ppn.xlsx
@@ -257,8 +257,8 @@ uv run bookmatcher-reconstruct data/Buchliste.xlsx output/unannotiert_matches.cs
 
 Als Ausgabeformat werden `.xlsx` und `.csv` unterstützt. Mehrere PPN-Treffer
 werden in der Spalte `PPN` kommasepariert zur einfachen Verifizierung ausgegeben.
-Die EPNs aller ausgegebenen Kandidaten stehen kommasepariert direkt daneben in
-der Spalte `EPN`; ein Kandidat kann mehrere EPNs haben.
+Die Signaturen aller ausgegebenen Kandidaten stehen kommasepariert direkt daneben
+in der Spalte `Signatur`; ein Kandidat kann mehrere Signaturen haben.
 Die Spalte `Anzahl des Exemplares in Thulb` enthält bei automatisch geprüften 
 Zeilen die Anzahl der im Ergebnis enthaltenen PPN-Treffer; bei nicht geprüften 
 Zeilen bleibt der ursprüngliche Wert erhalten. 

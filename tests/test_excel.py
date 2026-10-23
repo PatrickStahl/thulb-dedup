@@ -1,3 +1,6 @@
+import csv
+import json
+
 import pandas as pd
 from openpyxl import load_workbook
 
@@ -7,7 +10,7 @@ from bookmatcher.excel import (
     TITLE_COLUMN,
     YEAR_COLUMN,
     PPN_COLUMN,
-    EPN_COLUMN,
+    SIGNATURE_COLUMN,
     SOURCE_ROW_COLUMN,
     SplitBooks,
     append_match_results_to_original,
@@ -116,7 +119,11 @@ def test_append_match_results_recreates_original_columns_with_ppn():
         {
             SOURCE_ROW_COLUMN: [2, 2, 3],
             "candidate_ppn": ["PPN-1", "PPN-2", ""],
-            "candidate_epns": ["0012345678, 4968482507", "0034567890", ""],
+            "candidate_signatures": [
+                json.dumps(["LS, 42", "St 123"]),
+                json.dumps(["Magazin 7"]),
+                "",
+            ],
         }
     )
 
@@ -129,13 +136,13 @@ def test_append_match_results_recreates_original_columns_with_ppn():
         ANNOTATION_COLUMN,
         "Ort",
         PPN_COLUMN,
-        EPN_COLUMN,
+        SIGNATURE_COLUMN,
     ]
     assert result[AUTHOR_COLUMN].tolist() == ["Ada", "Grace", "Edsger"]
     assert result[ANNOTATION_COLUMN].tolist() == [2, 0, "already annotated"]
     assert result[PPN_COLUMN].tolist() == ["PPN-1, PPN-2", "", ""]
-    assert result[EPN_COLUMN].tolist() == [
-        "0012345678, 4968482507, 0034567890", "", ""
+    assert result[SIGNATURE_COLUMN].tolist() == [
+        "LS, 42, St 123, Magazin 7", "", ""
     ]
 
 
@@ -152,41 +159,36 @@ def test_reconstruct_original_output_writes_csv_and_xlsx(tmp_path):
         encoding="utf-8",
     )
     matches_path = tmp_path / "matches.csv"
-    matches_path.write_text(
-        "\n".join(
-            [
-                f"{SOURCE_ROW_COLUMN},candidate_ppn,candidate_epns",
-                '2,PPN-1,"0012345678, 4968482507"',
-                "3,PPN-2,0000001234",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    with matches_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([SOURCE_ROW_COLUMN, "candidate_ppn", "candidate_signatures"])
+        writer.writerow([2, "PPN-1", json.dumps(["LS, 42", "St 123"])])
+        writer.writerow([3, "PPN-2", json.dumps(["0000001234"])])
     csv_output_path = tmp_path / "out.csv"
     xlsx_output_path = tmp_path / "out.xlsx"
 
     reconstruct_original_output(input_path, matches_path, csv_output_path)
     reconstruct_original_output(input_path, matches_path, xlsx_output_path)
 
-    csv_result = pd.read_csv(csv_output_path, dtype={EPN_COLUMN: str})
+    csv_result = pd.read_csv(csv_output_path, dtype={SIGNATURE_COLUMN: str})
     xlsx_result = pd.read_excel(
-        xlsx_output_path, engine="openpyxl", dtype={EPN_COLUMN: str}
+        xlsx_output_path, engine="openpyxl", dtype={SIGNATURE_COLUMN: str}
     )
 
     assert csv_result[PPN_COLUMN].tolist() == ["PPN-1", "PPN-2"]
     assert xlsx_result[PPN_COLUMN].tolist() == ["PPN-1", "PPN-2"]
-    assert csv_result[EPN_COLUMN].tolist() == [
-        "0012345678, 4968482507", "0000001234"
+    assert csv_result[SIGNATURE_COLUMN].tolist() == [
+        "LS, 42, St 123", "0000001234"
     ]
-    assert xlsx_result[EPN_COLUMN].tolist() == [
-        "0012345678, 4968482507", "0000001234"
+    assert xlsx_result[SIGNATURE_COLUMN].tolist() == [
+        "LS, 42, St 123", "0000001234"
     ]
 
     workbook = load_workbook(xlsx_output_path)
     worksheet = workbook.active
 
     assert worksheet.auto_filter.ref == "A1:F3"
-    assert worksheet["F2"].value == "0012345678, 4968482507"
+    assert worksheet["F2"].value == "LS, 42, St 123"
     assert worksheet["F3"].value == "0000001234"
     assert worksheet.freeze_panes == "A2"
     assert worksheet["A1"].fill.fgColor.rgb == "00000000"
